@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-utils/tauri.conf.json",
+  "$schema": "https://schema.tauri.app/config/2",
   "productName": "Local AI Studio",
   "version": "1.0.0",
   "identifier": "com.localaistudio.app",
