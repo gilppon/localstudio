@@ -5,6 +5,8 @@ export const TtsTab: React.FC = () => {
   const [text, setText] = useState('Local AI Studio에 오신 것을 환영합니다! 사용자 PC 자원만으로 100% 초고속 로컬 음성을 생성합니다.');
   const [voice, setVoice] = useState('af_heart');
   const [speed, setSpeed] = useState(1.0);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleGenerate = async () => {
