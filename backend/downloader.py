@@ -37,21 +37,52 @@ PRESET_MODELS_INFO = [
     }
 ]
 
+def get_default_model_dir() -> str:
+    user_home = os.path.expanduser("~")
+    lm_studio_dir = os.path.join(user_home, ".lmstudio", "models")
+    if os.path.exists(lm_studio_dir):
+        return lm_studio_dir
+    try:
+        os.makedirs(lm_studio_dir, exist_ok=True)
+        return lm_studio_dir
+    except Exception:
+        fallback_dir = os.path.abspath("./models")
+        os.makedirs(fallback_dir, exist_ok=True)
+        return fallback_dir
+
 class ModelDownloader:
     """
     HTTP Range Request 기반 Resume(이어받기) 지원 원클릭 모델 다운로드 매니저.
-    HuggingFace 모델 파일(.safetensors / .gguf) 정밀 다운로드.
+    LM Studio (.lmstudio/models) 및 HuggingFace 모델 연동 다운로드.
     """
-    def __init__(self, download_dir: str = "./models"):
-        self.download_dir = download_dir
+    def __init__(self, download_dir: Optional[str] = None):
+        self.download_dir = download_dir or get_default_model_dir()
         os.makedirs(self.download_dir, exist_ok=True)
+        logger.info(f"모델 다운로드 기본 통합 경로: {self.download_dir}")
 
     def download_preset_models(self, progress_callback: Optional[Callable[[dict], None]] = None):
         total_items = len(PRESET_MODELS_INFO)
+        user_home = os.path.expanduser("~")
+        search_dirs = [
+            self.download_dir,
+            os.path.abspath("./models"),
+            os.path.join(user_home, ".lmstudio", "models"),
+            os.path.join(user_home, ".ollama", "models")
+        ]
+
         for idx, item in enumerate(PRESET_MODELS_INFO, start=1):
-            dest_path = os.path.join(self.download_dir, item["filename"])
-            if os.path.exists(dest_path) and os.path.getsize(dest_path) > 10 * 1024 * 1024:
-                logger.info(f"[{item['filename']}] 이미 존재함. 스킵.")
+            file_exists = False
+            for sdir in search_dirs:
+                if os.path.exists(sdir):
+                    for root, _, files in os.walk(sdir):
+                        if item["filename"].lower() in [f.lower() for f in files]:
+                            file_exists = True
+                            break
+                    if file_exists:
+                        break
+
+            if file_exists:
+                logger.info(f"[{item['filename']}] 기존 LM Studio / 로컬 모델 경로에 이미 존재함. 스킵.")
                 if progress_callback:
                     progress_callback({
                         "filename": item["filename"],

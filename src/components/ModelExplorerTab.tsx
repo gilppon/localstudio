@@ -279,7 +279,7 @@ export const ModelExplorerTab: React.FC = () => {
               4대 카테고리 로컬 AI 모델 원클릭 일괄 자동 설치
             </h2>
             <p className="text-xs text-slate-300">
-              Qwen2.5-VL (멀티모달), FLUX.1 (이미지), Wan2.1 (비디오), Kokoro (TTS) 필수 오픈소스 모델을 한 번에 세팅합니다.
+              Qwen2.5-VL (멀티모달), FLUX.1 (이미지), Wan2.1 (비디오), Kokoro (TTS) 모델을 <strong>LM Studio 폴더(~/.lmstudio/models)</strong>에 통합 다운로드합니다.
             </p>
           </div>
           <button
