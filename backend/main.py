@@ -384,15 +384,6 @@ def get_local_models():
             except Exception as e:
                 logger.warning(f"Scan path error [{base_dir}]: {e}")
 
-    # Fallback default preset models if no files on disk
-    if not found_models:
-        found_models = [
-            {"filename": "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf", "path": "./models/Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf", "size_gb": 2.45, "source": "Preset (권장 모델)"},
-            {"filename": "flux1-schnell-Q4_K_M.gguf", "path": "./models/flux1-schnell-Q4_K_M.gguf", "size_gb": 4.73, "source": "Preset (권장 모델)"},
-            {"filename": "wan2.1_t2v_1.3B_fp8.safetensors", "path": "./models/wan2.1_t2v_1.3B_fp8.safetensors", "size_gb": 1.40, "source": "Preset (권장 모델)"},
-            {"filename": "kokoro-v0_19.safetensors", "path": "./models/kokoro-v0_19.safetensors", "size_gb": 0.32, "source": "Preset (권장 모델)"}
-        ]
-
     return found_models
 
 @app.post("/api/models/download")

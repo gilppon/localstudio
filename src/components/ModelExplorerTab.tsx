@@ -97,6 +97,23 @@ export const ModelExplorerTab: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<ModelItem>(PRESET_MODELS[0]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [localDownloadedModels, setLocalDownloadedModels] = useState<any[]>([]);
+
+  const fetchLocalModels = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/models/local-list');
+      if (res.ok) {
+        const data = await res.json();
+        setLocalDownloadedModels(data);
+      }
+    } catch (e) {
+      console.warn('Local models fetch failed:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchLocalModels();
+  }, []);
 
   // Live search from Hugging Face Backend API
   const fetchHfModels = async (query: string) => {
@@ -145,6 +162,13 @@ export const ModelExplorerTab: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  const isDownloaded = localDownloadedModels.some(
+    (m: any) =>
+      m.filename?.toLowerCase().includes(selectedModel.name.toLowerCase()) ||
+      m.raw_filename?.toLowerCase().includes(selectedModel.name.toLowerCase()) ||
+      m.path?.toLowerCase().includes(selectedModel.name.toLowerCase())
+  );
+
   const handleUseInNewChat = () => {
     alert(`모델 [${selectedModel.id}]이(가) 활성화되었습니다! 멀티모달 챗으로 이동합니다.`);
     setActiveTab('multimodal');
@@ -153,7 +177,7 @@ export const ModelExplorerTab: React.FC = () => {
   const handleDownload = async () => {
     setDownloading(true);
     try {
-      await fetch('http://127.0.0.1:8000/api/models/download', {
+      const res = await fetch('http://127.0.0.1:8000/api/models/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -161,8 +185,12 @@ export const ModelExplorerTab: React.FC = () => {
           filename: `${selectedModel.name}.gguf`
         })
       });
+      if (res.ok) {
+        alert(`[${selectedModel.name}] 모델 백그라운드 다운로드가 시작되었습니다.`);
+      }
       setTimeout(() => {
         setDownloading(false);
+        fetchLocalModels();
       }, 1500);
     } catch (e) {
       setDownloading(false);
@@ -289,17 +317,36 @@ export const ModelExplorerTab: React.FC = () => {
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
-            <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>Applicable model file already downloaded</span>
-            </div>
+            {isDownloaded ? (
+              <>
+                <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>로컬 PC에 모델 파일 다운로드 완료</span>
+                </div>
 
-            <button
-              onClick={handleUseInNewChat}
-              className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
-            >
-              <Play className="w-4 h-4 fill-white" /> Use in New Chat
-            </button>
+                <button
+                  onClick={handleUseInNewChat}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition-all active:scale-95"
+                >
+                  <Play className="w-4 h-4 fill-white" /> Use in New Chat
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
+                  <span>⚠️ 미다운로드 모델 (다운로드 필요)</span>
+                </div>
+
+                <button
+                  onClick={handleDownload}
+                  disabled={downloading}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {downloading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  {downloading ? '다운로드 중...' : '모델 파일 다운로드 (GGUF)'}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
