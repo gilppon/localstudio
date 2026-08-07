@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mic, Sparkles, Download, RefreshCw, Volume2 } from 'lucide-react';
+import { useStudioStore } from '../store/useStudioStore';
 
 export const TtsTab: React.FC = () => {
+  const { localModels, fetchLocalModels } = useStudioStore();
+  const [selectedModelFile, setSelectedModelFile] = useState('');
   const [text, setText] = useState('Local AI Studio에 오신 것을 환영합니다! 사용자 PC 자원만으로 100% 초고속 로컬 음성을 생성합니다.');
   const [voice, setVoice] = useState('af_heart');
   const [speed, setSpeed] = useState(1.0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchLocalModels();
+  }, []);
+
+  useEffect(() => {
+    if (localModels.length > 0 && !selectedModelFile) {
+      setSelectedModelFile(localModels[0].filename);
+    }
+  }, [localModels]);
 
   const handleGenerate = async () => {
     if (!text.trim()) return;
@@ -17,7 +30,7 @@ export const TtsTab: React.FC = () => {
       const res = await fetch('http://127.0.0.1:8000/api/generate/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voice, speed })
+        body: JSON.stringify({ text, voice, speed, model: selectedModelFile || "Kokoro-82M" })
       });
       const data = await res.json();
       if (res.ok && data.audio_url) {
@@ -35,16 +48,39 @@ export const TtsTab: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-          <Mic className="w-5 h-5" />
+      {/* Header with Model Select Dropdown */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <Mic className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+              TTS (텍스트-음성) 스튜디오
+            </h1>
+            <p className="text-xs text-slate-400">텍스트 입력 ➔ 즉시 고품질 성우 음성 파일(WAV/MP3) 합성 출력</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            TTS (텍스트-음성) 스튜디오 <span className="text-xs px-2 py-0.5 bg-amber-500/20 text-amber-300 rounded border border-amber-500/30">Kokoro-82M (Apache 2.0)</span>
-          </h1>
-          <p className="text-xs text-slate-400">텍스트 입력 ➔ 즉시 고품질 성우 음성 파일(WAV/MP3) 합성 출력</p>
+
+        <div className="flex items-center gap-2 bg-slate-900/90 p-2 rounded-xl border border-amber-500/40 shadow-xl">
+          <span className="text-xs font-semibold text-amber-300 flex items-center gap-1 shrink-0">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400" /> 보유 TTS 모델:
+          </span>
+          <select
+            value={selectedModelFile}
+            onChange={(e) => setSelectedModelFile(e.target.value)}
+            className="bg-slate-950 text-white text-xs rounded-lg px-3 py-1.5 border border-amber-500/30 focus:outline-none focus:border-amber-400 font-mono min-w-[220px] max-w-[320px] truncate"
+          >
+            {localModels.length > 0 ? (
+              localModels.map((m) => (
+                <option key={m.path} value={m.filename} className="bg-slate-900 text-slate-100 font-medium py-1">
+                  [{m.source}] {m.filename} ({m.size_gb} GB)
+                </option>
+              ))
+            ) : (
+              <option value="">보유 모델 없음 (모델 탐색에서 다운로드 필요)</option>
+            )}
+          </select>
         </div>
       </div>
 

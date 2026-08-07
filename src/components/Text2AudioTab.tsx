@@ -1,11 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Music, Sparkles, Download, RefreshCw } from 'lucide-react';
+import { useStudioStore } from '../store/useStudioStore';
 
 export const Text2AudioTab: React.FC = () => {
+  const { localModels, fetchLocalModels } = useStudioStore();
+  const [selectedModelFile, setSelectedModelFile] = useState('');
   const [prompt, setPrompt] = useState('Chill lofi hiphop beat with gentle piano chords and warm rain atmosphere');
   const [durationSec, setDurationSec] = useState(10);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchLocalModels();
+  }, []);
+
+  useEffect(() => {
+    if (localModels.length > 0 && !selectedModelFile) {
+      setSelectedModelFile(localModels[0].filename);
+    }
+  }, [localModels]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -14,7 +27,7 @@ export const Text2AudioTab: React.FC = () => {
       const res = await fetch('http://127.0.0.1:8000/api/generate/audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt, duration_sec: durationSec, model: "Stable-Audio-Open" })
+        body: JSON.stringify({ prompt, duration_sec: durationSec, model: selectedModelFile || "Stable-Audio-Open" })
       });
       const data = await res.json();
       setAudioUrl(data.audio_url);
@@ -27,16 +40,39 @@ export const Text2AudioTab: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
-          <Music className="w-5 h-5" />
+      {/* Header with Model Select Dropdown */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400">
+            <Music className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-white flex items-center gap-2">
+              텍스트-오디오 스튜디오
+            </h1>
+            <p className="text-xs text-slate-400">고품질 로컬 음악, 배경음 및 사운드 효과음 오디오 합성</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-white flex items-center gap-2">
-            텍스트-오디오 스튜디오 <span className="text-xs px-2 py-0.5 bg-rose-500/20 text-rose-300 rounded border border-rose-500/30">Stable Audio Open</span>
-          </h1>
-          <p className="text-xs text-slate-400">고품질 로컬 음악, 배경음 및 사운드 효과음 오디오 합성</p>
+
+        <div className="flex items-center gap-2 bg-slate-900/90 p-2 rounded-xl border border-rose-500/40 shadow-xl">
+          <span className="text-xs font-semibold text-rose-300 flex items-center gap-1 shrink-0">
+            <Sparkles className="w-3.5 h-3.5 text-rose-400" /> 보유 오디오 모델:
+          </span>
+          <select
+            value={selectedModelFile}
+            onChange={(e) => setSelectedModelFile(e.target.value)}
+            className="bg-slate-950 text-white text-xs rounded-lg px-3 py-1.5 border border-rose-500/30 focus:outline-none focus:border-rose-400 font-mono min-w-[220px] max-w-[320px] truncate"
+          >
+            {localModels.length > 0 ? (
+              localModels.map((m) => (
+                <option key={m.path} value={m.filename} className="bg-slate-900 text-slate-100 font-medium py-1">
+                  [{m.source}] {m.filename} ({m.size_gb} GB)
+                </option>
+              ))
+            ) : (
+              <option value="">보유 모델 없음 (모델 탐색에서 다운로드 필요)</option>
+            )}
+          </select>
         </div>
       </div>
 
