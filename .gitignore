@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+dist-isolation/
+build/
+src-tauri/target/
+
+# Backend & Python
+backend/__pycache__/
+backend/*.pyc
+backend/outputs/
+*.pyc
+
+# Local AI Models (Large files)
+models/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+
+# Environment & Logs
+.env
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

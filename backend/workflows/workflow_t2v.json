@@ -1,0 +1,52 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "wan2.1_t2v_1.3B_fp8.safetensors"
+    },
+    "class_type": "UnetLoader"
+  },
+  "2": {
+    "inputs": {
+      "text": "Cinematic shot of a majestic dragon flying through misty mountain peaks, dramatic lighting, 4k",
+      "clip": ["3", 0]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "3": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8.safetensors"
+    },
+    "class_type": "CLIPLoader"
+  },
+  "4": {
+    "inputs": {
+      "width": 832,
+      "height": 480,
+      "length": 81,
+      "batch_size": 1
+    },
+    "class_type": "WanVideoLatentImage"
+  },
+  "5": {
+    "inputs": {
+      "seed": 12345,
+      "steps": 25,
+      "cfg": 6.0,
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": ["1", 0],
+      "positive": ["2", 0],
+      "latent_image": ["4", 0]
+    },
+    "class_type": "KSampler"
+  },
+  "6": {
+    "inputs": {
+      "filename_prefix": "LocalAIStudio_WanT2V",
+      "fps": 16,
+      "images": ["5", 0]
+    },
+    "class_type": "SaveVideo"
+  }
+}

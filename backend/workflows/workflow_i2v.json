@@ -1,0 +1,49 @@
+{
+  "1": {
+    "inputs": {
+      "image": "input_reference.png"
+    },
+    "class_type": "LoadImage"
+  },
+  "2": {
+    "inputs": {
+      "unet_name": "wan2.1_i2v_14B_fp8.safetensors"
+    },
+    "class_type": "UnetLoader"
+  },
+  "3": {
+    "inputs": {
+      "text": "Smooth camera zoom in with natural wind blowing through hair and trees",
+      "clip": ["4", 0]
+    },
+    "class_type": "CLIPTextEncode"
+  },
+  "4": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8.safetensors"
+    },
+    "class_type": "CLIPLoader"
+  },
+  "5": {
+    "inputs": {
+      "seed": 9999,
+      "steps": 20,
+      "cfg": 5.0,
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "denoise": 0.85,
+      "model": ["2", 0],
+      "positive": ["3", 0],
+      "image": ["1", 0]
+    },
+    "class_type": "WanI2VSampler"
+  },
+  "6": {
+    "inputs": {
+      "filename_prefix": "LocalAIStudio_WanI2V",
+      "fps": 24,
+      "images": ["5", 0]
+    },
+    "class_type": "SaveVideo"
+  }
+}
