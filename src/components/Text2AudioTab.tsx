@@ -9,6 +9,7 @@ export const Text2AudioTab: React.FC = () => {
   const [durationSec, setDurationSec] = useState(10);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetchLocalModels();
@@ -23,6 +24,8 @@ export const Text2AudioTab: React.FC = () => {
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
     setLoading(true);
+    setErrorMsg(null);
+    setAudioUrl(null);
     try {
       const res = await fetch('http://127.0.0.1:8000/api/generate/audio', {
         method: 'POST',
@@ -30,9 +33,14 @@ export const Text2AudioTab: React.FC = () => {
         body: JSON.stringify({ prompt, duration_sec: durationSec, model: selectedModelFile || "Stable-Audio-Open" })
       });
       const data = await res.json();
-      setAudioUrl(data.audio_url);
-    } catch (e) {
+      if (res.ok && data.audio_url) {
+        setAudioUrl(data.audio_url);
+      } else {
+        setErrorMsg(data.detail || '오디오 생성을 완료할 수 없습니다.');
+      }
+    } catch (e: any) {
       console.error(e);
+      setErrorMsg('백엔드 서버에 연결할 수 없습니다.');
     } finally {
       setLoading(false);
     }
@@ -112,6 +120,13 @@ export const Text2AudioTab: React.FC = () => {
 
         {/* Audio Player Panel */}
         <div className="lg:col-span-2 p-6 rounded-2xl glass-panel border border-slate-800 flex flex-col items-center justify-center min-h-[450px]">
+          {errorMsg && (
+            <div className="w-full max-w-md p-4 mb-4 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs text-center space-y-1">
+              <p className="font-bold">⚠️ 오디오 생성 안내</p>
+              <p>{errorMsg}</p>
+            </div>
+          )}
+
           {audioUrl ? (
             <div className="space-y-6 w-full max-w-md flex flex-col items-center">
               <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-rose-500 to-pink-500 flex items-center justify-center shadow-xl animate-pulse">

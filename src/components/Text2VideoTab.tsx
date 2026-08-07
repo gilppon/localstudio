@@ -12,6 +12,7 @@ export const Text2VideoTab: React.FC = () => {
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [notes, setNotes] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetchLocalModels();
@@ -26,6 +27,8 @@ export const Text2VideoTab: React.FC = () => {
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
     setLoading(true);
+    setErrorMsg(null);
+    setVideoUrl(null);
     try {
       const res = await fetch('http://127.0.0.1:8000/api/generate/text2video', {
         method: 'POST',
@@ -39,10 +42,15 @@ export const Text2VideoTab: React.FC = () => {
         })
       });
       const data = await res.json();
-      setVideoUrl(data.video_url);
-      setNotes(data.enhanced_notes || []);
-    } catch (e) {
+      if (res.ok && data.video_url) {
+        setVideoUrl(data.video_url);
+        setNotes(data.enhanced_notes || []);
+      } else {
+        setErrorMsg(data.detail || '비디오 생성에 실패했습니다.');
+      }
+    } catch (e: any) {
       console.error(e);
+      setErrorMsg('백엔드 서버에 연결할 수 없습니다.');
     } finally {
       setLoading(false);
     }
@@ -139,6 +147,13 @@ export const Text2VideoTab: React.FC = () => {
 
         {/* Video Player Display */}
         <div className="lg:col-span-2 p-6 rounded-2xl glass-panel border border-slate-800 flex flex-col items-center justify-center min-h-[450px]">
+          {errorMsg && (
+            <div className="w-full max-w-md p-4 mb-4 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 text-xs text-center space-y-1">
+              <p className="font-bold">⚠️ 비디오 렌더링 안내</p>
+              <p>{errorMsg}</p>
+            </div>
+          )}
+
           {videoUrl ? (
             <div className="space-y-4 w-full flex flex-col items-center">
               <video controls autoPlay loop src={videoUrl} className="max-h-[400px] w-full rounded-xl border border-cyan-500/30 shadow-2xl object-cover" />

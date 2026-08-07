@@ -10,6 +10,7 @@ export const Img2VideoTab: React.FC = () => {
   const [motionStrength, setMotionStrength] = useState(0.8);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     fetchLocalModels();
@@ -33,6 +34,8 @@ export const Img2VideoTab: React.FC = () => {
   const handleGenerate = async () => {
     if (!image) return;
     setLoading(true);
+    setErrorMsg(null);
+    setVideoUrl(null);
     try {
       const res = await fetch('http://127.0.0.1:8000/api/generate/img2video', {
         method: 'POST',
@@ -40,9 +43,14 @@ export const Img2VideoTab: React.FC = () => {
         body: JSON.stringify({ prompt, image_base64: image, motion_strength: motionStrength, model: selectedModelFile || "Wan I2V 14B" })
       });
       const data = await res.json();
-      setVideoUrl(data.video_url);
-    } catch (e) {
+      if (res.ok && data.video_url) {
+        setVideoUrl(data.video_url);
+      } else {
+        setErrorMsg(data.detail || 'I2V 비디오 변환에 실패했습니다.');
+      }
+    } catch (e: any) {
       console.error(e);
+      setErrorMsg('백엔드 서버에 연결할 수 없습니다.');
     } finally {
       setLoading(false);
     }
@@ -143,6 +151,13 @@ export const Img2VideoTab: React.FC = () => {
 
         {/* Display Panel */}
         <div className="lg:col-span-2 p-6 rounded-2xl glass-panel border border-slate-800 flex flex-col items-center justify-center min-h-[450px]">
+          {errorMsg && (
+            <div className="w-full max-w-md p-4 mb-4 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs text-center space-y-1">
+              <p className="font-bold">⚠️ 모션 비디오 변환 안내</p>
+              <p>{errorMsg}</p>
+            </div>
+          )}
+
           {videoUrl ? (
             <div className="space-y-4 w-full flex flex-col items-center">
               <video controls autoPlay loop src={videoUrl} className="max-h-[400px] w-full rounded-xl border border-emerald-500/30 shadow-2xl object-cover" />
