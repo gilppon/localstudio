@@ -400,6 +400,20 @@ async def download_model_file(req: ModelDownloadRequest, background_tasks: Backg
     background_tasks.add_task(run_dl)
     return {"status": "started", "message": f"모델 [{req.filename}] 백그라운드 다운로드가 시작되었습니다."}
 
+@app.post("/api/models/auto-setup")
+async def auto_setup_preset_models(background_tasks: BackgroundTasks):
+    def progress_cb(data):
+        notify_ws_clients({
+            "type": "batch_download_progress",
+            "data": data
+        })
+
+    def run_batch():
+        downloader.download_preset_models(progress_callback=progress_cb)
+
+    background_tasks.add_task(run_batch)
+    return {"status": "started", "message": "4대 카테고리 필수 오픈소스 AI 모델 일괄 자동 다운로드가 시작되었습니다."}
+
 # 1. 멀티모달 (Qwen2.5-VL / Ollama API Real Inference)
 @app.post("/api/generate/multimodal")
 async def generate_multimodal(req: MultimodalRequest):

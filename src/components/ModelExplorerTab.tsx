@@ -197,6 +197,25 @@ export const ModelExplorerTab: React.FC = () => {
     }
   };
 
+  const [batchDownloading, setBatchDownloading] = useState(false);
+
+  const handleAutoSetup = async () => {
+    setBatchDownloading(true);
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/models/auto-setup', { method: 'POST' });
+      if (res.ok) {
+        alert('4대 카테고리 로컬 오픈소스 AI 모델(Qwen2.5-VL, FLUX.1-schnell, Wan2.1, Kokoro) 일괄 다운로드가 백그라운드에서 시작되었습니다!');
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTimeout(() => {
+        setBatchDownloading(false);
+        fetchLocalModels();
+      }, 3000);
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-1rem)] bg-[#121318] text-slate-200 overflow-hidden font-sans">
       {/* Left List Panel */}
@@ -252,6 +271,26 @@ export const ModelExplorerTab: React.FC = () => {
 
       {/* Right Detail Panel */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#121318]">
+        {/* Banner for One-Click Auto Batch Downloader */}
+        <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-900/70 via-slate-900 to-amber-950/50 border border-indigo-500/30 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+          <div className="space-y-1">
+            <h2 className="text-sm font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              4대 카테고리 로컬 AI 모델 원클릭 일괄 자동 설치
+            </h2>
+            <p className="text-xs text-slate-300">
+              Qwen2.5-VL (멀티모달), FLUX.1 (이미지), Wan2.1 (비디오), Kokoro (TTS) 필수 오픈소스 모델을 한 번에 세팅합니다.
+            </p>
+          </div>
+          <button
+            onClick={handleAutoSetup}
+            disabled={batchDownloading}
+            className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-bold text-xs rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-2 shrink-0 transition-all active:scale-95 disabled:opacity-50"
+          >
+            {batchDownloading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {batchDownloading ? '일괄 다운로드 가동 중...' : '⚡ 원클릭 일괄 자동 세팅 시작'}
+          </button>
+        </div>
         {/* Model Header */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">

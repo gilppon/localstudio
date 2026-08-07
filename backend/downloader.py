@@ -6,6 +6,37 @@ from typing import Callable, Optional
 
 logger = logging.getLogger("ModelDownloader")
 
+PRESET_MODELS_INFO = [
+    {
+        "category": "multimodal",
+        "name": "Qwen2.5-VL-3B-Instruct",
+        "filename": "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
+        "url": "https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/qwen2.5-vl-3b-instruct-q4_k_m.gguf",
+        "size_desc": "2.45 GB"
+    },
+    {
+        "category": "text2img",
+        "name": "FLUX.1-schnell-GGUF",
+        "filename": "flux1-schnell-Q4_K_M.gguf",
+        "url": "https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q4_K_M.gguf",
+        "size_desc": "4.73 GB"
+    },
+    {
+        "category": "video",
+        "name": "Wan2.1-T2V-1.3B-FP8",
+        "filename": "wan2.1_t2v_1.3B_fp8.safetensors",
+        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors",
+        "size_desc": "1.40 GB"
+    },
+    {
+        "category": "tts",
+        "name": "Kokoro-v0_19",
+        "filename": "kokoro-v0_19.safetensors",
+        "url": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v0_19.safetensors",
+        "size_desc": "0.32 GB"
+    }
+]
+
 class ModelDownloader:
     """
     HTTP Range Request 기반 Resume(이어받기) 지원 원클릭 모델 다운로드 매니저.
@@ -14,6 +45,35 @@ class ModelDownloader:
     def __init__(self, download_dir: str = "./models"):
         self.download_dir = download_dir
         os.makedirs(self.download_dir, exist_ok=True)
+
+    def download_preset_models(self, progress_callback: Optional[Callable[[dict], None]] = None):
+        total_items = len(PRESET_MODELS_INFO)
+        for idx, item in enumerate(PRESET_MODELS_INFO, start=1):
+            dest_path = os.path.join(self.download_dir, item["filename"])
+            if os.path.exists(dest_path) and os.path.getsize(dest_path) > 10 * 1024 * 1024:
+                logger.info(f"[{item['filename']}] 이미 존재함. 스킵.")
+                if progress_callback:
+                    progress_callback({
+                        "filename": item["filename"],
+                        "category": item["category"],
+                        "item_index": idx,
+                        "total_items": total_items,
+                        "progress_percent": 100.0,
+                        "status": "already_exists"
+                    })
+                continue
+            
+            def item_cb(data):
+                data["category"] = item["category"]
+                data["item_index"] = idx
+                data["total_items"] = total_items
+                if progress_callback:
+                    progress_callback(data)
+
+            try:
+                self.download_file(item["url"], item["filename"], progress_callback=item_cb)
+            except Exception as e:
+                logger.error(f"Preset model download error [{item['filename']}]: {e}")
 
     def download_file(
         self, 
