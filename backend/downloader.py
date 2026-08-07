@@ -9,30 +9,30 @@ logger = logging.getLogger("ModelDownloader")
 PRESET_MODELS_INFO = [
     {
         "category": "multimodal",
-        "name": "Qwen2.5-VL-3B-Instruct",
-        "filename": "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
-        "url": "https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/qwen2.5-vl-3b-instruct-q4_k_m.gguf?download=true",
-        "size_desc": "2.45 GB"
+        "name": "Qwen2.5-3B-Instruct",
+        "filename": "qwen2.5-3b-instruct-q4_k_m.gguf",
+        "url": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
+        "size_desc": "2.10 GB"
     },
     {
         "category": "text2img",
         "name": "FLUX.1-schnell-GGUF",
-        "filename": "flux1-schnell-Q4_K_M.gguf",
-        "url": "https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q4_K_M.gguf?download=true",
-        "size_desc": "4.73 GB"
+        "filename": "flux1-schnell-Q2_K.gguf",
+        "url": "https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q2_K.gguf",
+        "size_desc": "4.01 GB"
     },
     {
         "category": "video",
         "name": "Wan2.1-T2V-1.3B-FP8",
         "filename": "wan2.1_t2v_1.3B_fp8.safetensors",
-        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors?download=true",
-        "size_desc": "1.40 GB"
+        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors",
+        "size_desc": "5.67 GB"
     },
     {
         "category": "tts",
-        "name": "Kokoro-v0_19",
-        "filename": "kokoro-v0_19.safetensors",
-        "url": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v0_19.safetensors?download=true",
+        "name": "Kokoro-82M",
+        "filename": "kokoro-v1_0.pth",
+        "url": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v1_0.pth",
         "size_desc": "0.32 GB"
     }
 ]
