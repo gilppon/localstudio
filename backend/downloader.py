@@ -11,28 +11,28 @@ PRESET_MODELS_INFO = [
         "category": "multimodal",
         "name": "Qwen2.5-VL-3B-Instruct",
         "filename": "Qwen2.5-VL-3B-Instruct-Q4_K_M.gguf",
-        "url": "https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/qwen2.5-vl-3b-instruct-q4_k_m.gguf",
+        "url": "https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct-GGUF/resolve/main/qwen2.5-vl-3b-instruct-q4_k_m.gguf?download=true",
         "size_desc": "2.45 GB"
     },
     {
         "category": "text2img",
         "name": "FLUX.1-schnell-GGUF",
         "filename": "flux1-schnell-Q4_K_M.gguf",
-        "url": "https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q4_K_M.gguf",
+        "url": "https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q4_K_M.gguf?download=true",
         "size_desc": "4.73 GB"
     },
     {
         "category": "video",
         "name": "Wan2.1-T2V-1.3B-FP8",
         "filename": "wan2.1_t2v_1.3B_fp8.safetensors",
-        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors",
+        "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors?download=true",
         "size_desc": "1.40 GB"
     },
     {
         "category": "tts",
         "name": "Kokoro-v0_19",
         "filename": "kokoro-v0_19.safetensors",
-        "url": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v0_19.safetensors",
+        "url": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v0_19.safetensors?download=true",
         "size_desc": "0.32 GB"
     }
 ]
@@ -75,9 +75,12 @@ class ModelDownloader:
             for sdir in search_dirs:
                 if os.path.exists(sdir):
                     for root, _, files in os.walk(sdir):
-                        if item["filename"].lower() in [f.lower() for f in files]:
-                            file_exists = True
-                            break
+                        for f in files:
+                            if item["filename"].lower() == f.lower():
+                                full_f = os.path.join(root, f)
+                                if os.path.getsize(full_f) > 10 * 1024 * 1024:
+                                    file_exists = True
+                                    break
                     if file_exists:
                         break
 
@@ -114,6 +117,14 @@ class ModelDownloader:
     ) -> str:
         dest_path = os.path.join(self.download_dir, filename)
         temp_path = dest_path + ".download"
+
+        # Resolve HuggingFace LFS redirect to final CDN URL
+        try:
+            head_resp = requests.head(url, allow_redirects=True, timeout=10)
+            if head_resp.status_code == 200:
+                url = head_resp.url
+        except Exception:
+            pass
         
         initial_size = 0
         if os.path.exists(temp_path):
@@ -125,14 +136,13 @@ class ModelDownloader:
             logger.info(f"Resume 이어받기 시작: {filename} ({initial_size} bytes 이미 수신됨)")
 
         try:
-            response = requests.get(url, headers=headers, stream=True, timeout=15)
+            response = requests.get(url, headers=headers, stream=True, allow_redirects=True, timeout=15)
             
             # 206 Partial Content or 200 OK
             if response.status_code not in (200, 206):
-                # Fallback range clean fetch if range not supported
                 initial_size = 0
                 headers = {}
-                response = requests.get(url, stream=True, timeout=15)
+                response = requests.get(url, stream=True, allow_redirects=True, timeout=15)
                 
             content_length = response.headers.get("content-length")
             total_bytes = int(content_length) + initial_size if content_length else 0
