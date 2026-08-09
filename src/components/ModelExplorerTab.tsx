@@ -91,13 +91,52 @@ const PRESET_MODELS: ModelItem[] = [
 ];
 
 export const ModelExplorerTab: React.FC = () => {
-  const { setActiveTab } = useStudioStore();
+  const { setActiveTab, downloads } = useStudioStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [modelList, setModelList] = useState<ModelItem[]>(PRESET_MODELS);
   const [selectedModel, setSelectedModel] = useState<ModelItem>(PRESET_MODELS[0]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [localDownloadedModels, setLocalDownloadedModels] = useState<any[]>([]);
+  const [availableFiles, setAvailableFiles] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string>('');
+
+  const currentDownload = Object.values(downloads).find(
+    (dl: any) =>
+      dl.filename?.toLowerCase() === selectedFile.toLowerCase() ||
+      dl.filename?.toLowerCase() === `${selectedModel.name.toLowerCase()}.gguf` ||
+      dl.filename?.toLowerCase() === `${selectedModel.id.split('/').pop()?.toLowerCase()}.gguf`
+  );
+
+  const fetchAvailableFiles = async (modelId: string) => {
+    try {
+      const res = await fetch(`http://127.0.0.1:8000/api/models/hf-files?model_id=${encodeURIComponent(modelId)}`);
+      if (res.ok) {
+        const data = await res.json();
+        const files: string[] = data.files || [];
+        setAvailableFiles(files);
+        if (files.length > 0) {
+          setSelectedFile(files[0]);
+        } else {
+          setSelectedFile(`${modelId.split('/').pop()}.gguf`);
+        }
+      }
+    } catch (e) {
+      console.warn('HF files fetch error:', e);
+      setAvailableFiles([]);
+      setSelectedFile(`${modelId.split('/').pop()}.gguf`);
+    }
+  };
+
+  useEffect(() => {
+    fetchAvailableFiles(selectedModel.id);
+  }, [selectedModel.id]);
+
+  useEffect(() => {
+    if (currentDownload?.status === 'completed') {
+      fetchLocalModels();
+    }
+  }, [currentDownload?.status]);
 
   const fetchLocalModels = async () => {
     try {
@@ -164,6 +203,8 @@ export const ModelExplorerTab: React.FC = () => {
 
   const isDownloaded = localDownloadedModels.some(
     (m: any) =>
+      (selectedFile && m.filename?.toLowerCase() === selectedFile.toLowerCase()) ||
+      (selectedFile && m.raw_filename?.toLowerCase() === selectedFile.toLowerCase()) ||
       m.filename?.toLowerCase().includes(selectedModel.name.toLowerCase()) ||
       m.raw_filename?.toLowerCase().includes(selectedModel.name.toLowerCase()) ||
       m.path?.toLowerCase().includes(selectedModel.name.toLowerCase())
@@ -175,18 +216,19 @@ export const ModelExplorerTab: React.FC = () => {
   };
 
   const handleDownload = async () => {
+    const downloadFilename = selectedFile || `${selectedModel.name}.gguf`;
     setDownloading(true);
     try {
       const res = await fetch('http://127.0.0.1:8000/api/models/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          url: `https://huggingface.co/${selectedModel.id}/resolve/main/model.gguf`,
-          filename: `${selectedModel.name}.gguf`
+          url: `https://huggingface.co/${selectedModel.id}/resolve/main/${downloadFilename}`,
+          filename: downloadFilename
         })
       });
       if (res.ok) {
-        alert(`[${selectedModel.name}] 모델 백그라운드 다운로드가 시작되었습니다.`);
+        alert(`[${downloadFilename}] 모델 백그라운드 다운로드가 시작되었습니다.`);
       }
       setTimeout(() => {
         setDownloading(false);
@@ -330,10 +372,50 @@ export const ModelExplorerTab: React.FC = () => {
             <span className="flex items-center gap-1.5"><Download className="w-4 h-4 text-indigo-400" /> Download Options</span>
           </div>
 
-          <div className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
-            <span className="text-xs font-semibold text-white">{selectedModel.name}</span>
-            <span className="text-xs text-slate-400 font-mono">{selectedModel.sizeGb}</span>
-          </div>
+          {availableFiles.length > 0 ? (
+            <div className="space-y-2">
+              <label className="text-[11px] font-semibold text-slate-400">📥 다운로드할 세부 파일 선택 (양자화 버전):</label>
+              <select
+                value={selectedFile}
+                onChange={(e) => setSelectedFile(e.target.value)}
+                className="w-full bg-slate-950 text-white text-xs rounded-xl px-3 py-2.5 border border-slate-800 focus:outline-none focus:border-indigo-500 font-mono"
+              >
+                {availableFiles.map((filename) => (
+                  <option key={filename} value={filename} className="bg-slate-900 font-mono text-slate-100">
+                    {filename}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between p-3 bg-slate-950 rounded-xl border border-slate-800">
+              <span className="text-xs font-semibold text-white">{selectedFile || selectedModel.name}</span>
+              <span className="text-xs text-slate-400 font-mono">{selectedModel.sizeGb}</span>
+            </div>
+          )}
+
+          {currentDownload && currentDownload.status === 'downloading' && (
+            <div className="p-3.5 bg-indigo-950/20 rounded-xl border border-indigo-500/20 space-y-2">
+              <div className="flex justify-between items-center text-xs font-semibold">
+                <span className="text-indigo-400 flex items-center gap-1.5 animate-pulse">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" /> 다운로드 중...
+                </span>
+                <span className="text-cyan-400 font-mono font-bold">
+                  {currentDownload.progress_percent}% ({currentDownload.speed_mbps} MB/s)
+                </span>
+              </div>
+              <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden p-0.5 border border-slate-800">
+                <div 
+                  className="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 rounded-full transition-all duration-300"
+                  style={{ width: `${currentDownload.progress_percent}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-[10px] text-slate-400 font-mono">
+                <span>{(currentDownload.downloaded_bytes / (1024 ** 2)).toFixed(1)} MB 수신됨</span>
+                <span>총 {(currentDownload.total_bytes / (1024 ** 2)).toFixed(1)} MB</span>
+              </div>
+            </div>
+          )}
 
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2">
             {isDownloaded ? (

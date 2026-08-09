@@ -3,13 +3,14 @@ import { useStudioStore } from '../store/useStudioStore';
 import { Cpu, HardDrive, Zap, Trash2, Download, CheckCircle2, ShieldCheck, Server } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
-  const { vramStatus, fetchVramStatus, forceVramFlush, downloads } = useStudioStore();
+  const { vramStatus, fetchVramStatus, forceVramFlush, localModels, fetchLocalModels, downloads } = useStudioStore();
   const [downloadUrl, setDownloadUrl] = useState('https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q4_K_M.gguf');
   const [downloadFilename, setDownloadFilename] = useState('flux1-schnell-Q4_K_M.gguf');
   const [downloadNotice, setDownloadNotice] = useState('');
 
   useEffect(() => {
     fetchVramStatus();
+    fetchLocalModels();
     const interval = setInterval(fetchVramStatus, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -119,14 +120,14 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="text-xl font-bold text-white mb-2">{vramStatus?.profile_tier || 'Low-VRAM (엔트리)'}</div>
           <ul className="text-xs space-y-1 text-slate-300">
-            <li>• VLM 추천: Qwen2.5-VL</li>
-            <li>• T2I 추천: FLUX.1-schnell (GGUF)</li>
-            <li>• Video 추천: Wan 2.1 (FP8 / Offload)</li>
-            <li>• TTS 추천: Kokoro-82M</li>
+            <li>• VLM 추천: {vramStatus?.recommended_models?.vlm || 'Qwen2.5-VL'}</li>
+            <li>• T2I 추천: {vramStatus?.recommended_models?.t2i || 'FLUX.1-schnell (GGUF)'}</li>
+            <li>• Video 추천: {vramStatus?.recommended_models?.video || 'Wan 2.1 (FP8 / Offload)'}</li>
+            <li>• TTS 추천: {vramStatus?.recommended_models?.tts || 'Kokoro-82M'}</li>
           </ul>
           <div className="mt-3 pt-2 border-t border-indigo-500/20 text-[11px] text-cyan-300 flex items-center justify-between">
             <span>📁 내 PC 감지된 보유 모델:</span>
-            <span className="font-bold text-white font-mono">{useStudioStore.getState().localModels.length}개 감지됨</span>
+            <span className="font-bold text-white font-mono">{localModels.length}개 감지됨</span>
           </div>
         </div>
       </div>

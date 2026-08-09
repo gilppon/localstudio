@@ -144,8 +144,20 @@ class ModelDownloader:
                 headers = {}
                 response = requests.get(url, stream=True, allow_redirects=True, timeout=15)
                 
+            if response.status_code == 404:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise ValueError(f"모델 다운로드 링크를 찾을 수 없습니다 (404 Not Found): {url}")
+
             content_length = response.headers.get("content-length")
             total_bytes = int(content_length) + initial_size if content_length else 0
+
+            # Content type check to prevent HTML downloads
+            content_type = response.headers.get("content-type", "")
+            if "text/html" in content_type:
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+                raise ValueError(f"모델 파일이 아닌 HTML 웹페이지가 응답되었습니다. 올바른 Hugging Face direct LFS 다운로드 주소인지 확인하십시오.")
 
             mode = "ab" if initial_size > 0 and response.status_code == 206 else "wb"
             start_time = time.time()
@@ -170,6 +182,13 @@ class ModelDownloader:
                                 "speed_mbps": round(speed_mb, 2),
                                 "status": "downloading"
                             })
+
+            # Validate final download size is at least 1MB
+            if os.path.exists(temp_path):
+                final_size = os.path.getsize(temp_path)
+                if final_size < 1 * 1024 * 1024:
+                    os.remove(temp_path)
+                    raise ValueError(f"다운로드된 파일 크기({final_size} bytes)가 비정상적으로 작습니다 (1MB 미만). 다운로드 링크를 다시 확인하십시오.")
 
             # Rename on completion
             os.replace(temp_path, dest_path)

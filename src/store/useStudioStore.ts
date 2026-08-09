@@ -10,6 +10,13 @@ export interface VramStatus {
   reserved_vram_gb: number;
   current_model: string;
   profile_tier: string;
+  recommended_models?: {
+    vlm?: string;
+    t2i?: string;
+    video?: string;
+    audio?: string;
+    tts?: string;
+  };
 }
 
 export interface DownloadProgress {

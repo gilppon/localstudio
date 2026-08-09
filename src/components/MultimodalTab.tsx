@@ -53,10 +53,18 @@ export const MultimodalTab: React.FC = () => {
       const res = await fetch('http://127.0.0.1:8000/api/generate/multimodal', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMsg.text, image_base64: userMsg.image })
+        body: JSON.stringify({
+          prompt: userMsg.text,
+          image_base64: userMsg.image,
+          model: selectedModelFile || "Qwen2.5-VL"
+        })
       });
       const data = await res.json();
-      setMessages((prev) => [...prev, { sender: 'bot', text: data.reply }]);
+      if (res.ok && data.reply) {
+        setMessages((prev) => [...prev, { sender: 'bot', text: data.reply }]);
+      } else {
+        setMessages((prev) => [...prev, { sender: 'bot', text: data.detail || data.reply || '오류가 발생했습니다. 백엔드 연결을 확인해 주세요.' }]);
+      }
     } catch (err) {
       setMessages((prev) => [...prev, { sender: 'bot', text: '오류가 발생했습니다. 백엔드 연결을 확인해 주세요.' }]);
     } finally {
