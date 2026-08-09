@@ -91,13 +91,12 @@ const PRESET_MODELS: ModelItem[] = [
 ];
 
 export const ModelExplorerTab: React.FC = () => {
-  const { setActiveTab, downloads } = useStudioStore();
+  const { setActiveTab, downloads, localModels, fetchLocalModels } = useStudioStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [modelList, setModelList] = useState<ModelItem[]>(PRESET_MODELS);
   const [selectedModel, setSelectedModel] = useState<ModelItem>(PRESET_MODELS[0]);
   const [loading, setLoading] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [localDownloadedModels, setLocalDownloadedModels] = useState<any[]>([]);
   const [availableFiles, setAvailableFiles] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<string>('');
 
@@ -130,6 +129,7 @@ export const ModelExplorerTab: React.FC = () => {
 
   useEffect(() => {
     fetchAvailableFiles(selectedModel.id);
+    fetchLocalModels();
   }, [selectedModel.id]);
 
   useEffect(() => {
@@ -137,18 +137,6 @@ export const ModelExplorerTab: React.FC = () => {
       fetchLocalModels();
     }
   }, [currentDownload?.status]);
-
-  const fetchLocalModels = async () => {
-    try {
-      const res = await fetch('http://127.0.0.1:8000/api/models/local-list');
-      if (res.ok) {
-        const data = await res.json();
-        setLocalDownloadedModels(data);
-      }
-    } catch (e) {
-      console.warn('Local models fetch failed:', e);
-    }
-  };
 
   useEffect(() => {
     fetchLocalModels();
@@ -201,7 +189,7 @@ export const ModelExplorerTab: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const isDownloaded = localDownloadedModels.some(
+  const isDownloaded = localModels.some(
     (m: any) =>
       (selectedFile && m.filename?.toLowerCase() === selectedFile.toLowerCase()) ||
       (selectedFile && m.raw_filename?.toLowerCase() === selectedFile.toLowerCase()) ||
