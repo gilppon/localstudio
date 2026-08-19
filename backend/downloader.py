@@ -1,5 +1,7 @@
 import os
 import time
+import shutil
+import hashlib
 import requests
 import logging
 from typing import Callable, Optional
@@ -12,28 +14,32 @@ PRESET_MODELS_INFO = [
         "name": "Qwen2.5-3B-Instruct",
         "filename": "qwen2.5-3b-instruct-q4_k_m.gguf",
         "url": "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
-        "size_desc": "2.10 GB"
+        "size_desc": "2.10 GB",
+        "min_free_gb": 3.0
     },
     {
         "category": "text2img",
         "name": "FLUX.1-schnell-GGUF",
         "filename": "flux1-schnell-Q2_K.gguf",
         "url": "https://huggingface.co/city96/FLUX.1-schnell-gguf/resolve/main/flux1-schnell-Q2_K.gguf",
-        "size_desc": "4.01 GB"
+        "size_desc": "4.01 GB",
+        "min_free_gb": 5.0
     },
     {
         "category": "video",
         "name": "Wan2.1-T2V-1.3B-FP8",
         "filename": "wan2.1_t2v_1.3B_fp8.safetensors",
         "url": "https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B/resolve/main/diffusion_pytorch_model.safetensors",
-        "size_desc": "5.67 GB"
+        "size_desc": "5.67 GB",
+        "min_free_gb": 7.0
     },
     {
         "category": "tts",
         "name": "Kokoro-82M",
         "filename": "kokoro-v1_0.pth",
         "url": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v1_0.pth",
-        "size_desc": "0.32 GB"
+        "size_desc": "0.32 GB",
+        "min_free_gb": 1.0
     }
 ]
 
@@ -52,13 +58,32 @@ def get_default_model_dir() -> str:
 
 class ModelDownloader:
     """
-    HTTP Range Request 기반 Resume(이어받기) 지원 원클릭 모델 다운로드 매니저.
-    LM Studio (.lmstudio/models) 및 HuggingFace 모델 연동 다운로드.
+    HTTP Range Request 기반 Resume(이어받기) + SHA256 무결성 검증 + 
+    디스크 잔여 공간 가드(Disk Guard) 지원 원클릭 모델 다운로드 매니저.
     """
     def __init__(self, download_dir: Optional[str] = None):
         self.download_dir = download_dir or get_default_model_dir()
         os.makedirs(self.download_dir, exist_ok=True)
         logger.info(f"모델 다운로드 기본 통합 경로: {self.download_dir}")
+
+    def check_disk_space(self, target_dir: str, required_gb: float = 3.0) -> bool:
+        """디스크 여유 공간이 충분한지 확인"""
+        try:
+            total, used, free = shutil.disk_usage(target_dir)
+            free_gb = free / (1024 ** 3)
+            logger.info(f"💾 디스크 여유 공간 확인: {round(free_gb, 2)} GB (필요: {required_gb} GB)")
+            return free_gb >= required_gb
+        except Exception as e:
+            logger.warning(f"디스크 공간 측정 불가: {e}")
+            return True
+
+    def calculate_sha256(self, filepath: str) -> str:
+        """대용량 파일의 SHA256 체크섬을 스트리밍 방식으로 계산"""
+        sha256_hash = hashlib.sha256()
+        with open(filepath, "rb") as f:
+            for byte_block in iter(lambda: f.read(4096 * 1024), b""): # 4MB buffer
+                sha256_hash.update(byte_block)
+        return sha256_hash.hexdigest()
 
     def download_preset_models(self, progress_callback: Optional[Callable[[dict], None]] = None):
         total_items = len(PRESET_MODELS_INFO)
@@ -105,7 +130,13 @@ class ModelDownloader:
                     progress_callback(data)
 
             try:
-                self.download_file(item["url"], item["filename"], progress_callback=item_cb)
+                min_gb = item.get("min_free_gb", 3.0)
+                self.download_file(
+                    item["url"], 
+                    item["filename"], 
+                    progress_callback=item_cb,
+                    min_free_gb=min_gb
+                )
             except Exception as e:
                 logger.error(f"Preset model download error [{item['filename']}]: {e}")
 
@@ -113,12 +144,22 @@ class ModelDownloader:
         self, 
         url: str, 
         filename: str, 
-        progress_callback: Optional[Callable[[dict], None]] = None
+        progress_callback: Optional[Callable[[dict], None]] = None,
+        expected_sha256: Optional[str] = None,
+        min_free_gb: float = 3.0
     ) -> str:
         dest_path = os.path.join(self.download_dir, filename)
         temp_path = dest_path + ".download"
 
-        # Resolve HuggingFace LFS redirect to final CDN URL
+        # 1. Disk Space Pre-Check
+        if not self.check_disk_space(self.download_dir, required_gb=min_free_gb):
+            err_msg = f"디스크 여유 공간이 부족합니다 (최소 {min_free_gb}GB 필요). 디스크 공간을 확보해 주세요."
+            logger.error(err_msg)
+            if progress_callback:
+                progress_callback({"filename": filename, "status": "failed", "error": err_msg})
+            raise IOError(err_msg)
+
+        # 2. Resolve HuggingFace LFS redirect to final CDN URL
         try:
             head_resp = requests.head(url, allow_redirects=True, timeout=10)
             if head_resp.status_code == 200:
@@ -138,7 +179,6 @@ class ModelDownloader:
         try:
             response = requests.get(url, headers=headers, stream=True, allow_redirects=True, timeout=15)
             
-            # 206 Partial Content or 200 OK
             if response.status_code not in (200, 206):
                 initial_size = 0
                 headers = {}
@@ -189,6 +229,15 @@ class ModelDownloader:
                 if final_size < 1 * 1024 * 1024:
                     os.remove(temp_path)
                     raise ValueError(f"다운로드된 파일 크기({final_size} bytes)가 비정상적으로 작습니다 (1MB 미만). 다운로드 링크를 다시 확인하십시오.")
+
+            # 3. SHA256 Integrity Verification (if hash provided)
+            if expected_sha256:
+                logger.info(f"🔒 [{filename}] SHA256 무결성 검증 수행 중...")
+                computed_hash = self.calculate_sha256(temp_path)
+                if computed_hash.lower() != expected_sha256.lower():
+                    os.remove(temp_path)
+                    raise ValueError(f"SHA256 체크섬 불일치! 파일이 손상되었습니다. (계산값: {computed_hash}, 기대값: {expected_sha256})")
+                logger.info("✅ SHA256 체크섬 검증 통과!")
 
             # Rename on completion
             os.replace(temp_path, dest_path)

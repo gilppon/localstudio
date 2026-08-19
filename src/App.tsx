@@ -1,45 +1,98 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStudioStore, TabType } from './store/useStudioStore';
 import { VramIndicator } from './components/VramIndicator';
 import { Dashboard } from './components/Dashboard';
 import { ModelExplorerTab } from './components/ModelExplorerTab';
 import { MultimodalTab } from './components/MultimodalTab';
 import { Text2ImgTab } from './components/Text2ImgTab';
+import { HistoryGalleryTab } from './components/HistoryGalleryTab';
 import { Text2VideoTab } from './components/Text2VideoTab';
 import { Img2VideoTab } from './components/Img2VideoTab';
 import { Text2AudioTab } from './components/Text2AudioTab';
 import { TtsTab } from './components/TtsTab';
+import { ImageUpscalerTab } from './components/ImageUpscalerTab';
+import { InpaintingTab } from './components/InpaintingTab';
+import { BatchStudioTab } from './components/BatchStudioTab';
+import { HardwareBenchmarkTab } from './components/HardwareBenchmarkTab';
+import { BootstrapLoader } from './components/BootstrapLoader';
+import { invoke } from '@tauri-apps/api/core';
 import { 
   LayoutDashboard, 
   Search,
   Eye, 
   Palette, 
+  History,
   Film, 
   Wand2, 
   Music, 
   Mic, 
   Zap, 
   Cpu, 
-  Activity 
+  Activity,
+  ZoomIn,
+  Brush,
+  Layers,
+  Gauge
 } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { activeTab, setActiveTab, connectWebSocket, fetchVramStatus, vramStatus, wsConnected } = useStudioStore();
+  const [backendStatus, setBackendStatus] = useState<string>('checking');
 
   useEffect(() => {
-    fetchVramStatus();
-    connectWebSocket();
-  }, []);
+    const checkStatus = async () => {
+      try {
+        const status = await invoke<string>("get_backend_status");
+        setBackendStatus(status);
+        if (status === 'Active') {
+          fetchVramStatus();
+          connectWebSocket();
+        }
+      } catch (e) {
+        console.error("백엔드 상태 감지 에러, 셋업 필요 처리:", e);
+        setBackendStatus('NeedSetup');
+      }
+    };
+    checkStatus();
+  }, [fetchVramStatus, connectWebSocket]);
 
-  const navItems: { id: any; label: string; icon: React.ReactNode; badge?: string }[] = [
+  if (backendStatus === 'checking') {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0b0f19] text-slate-100 font-sans">
+        <div className="text-center space-y-4">
+          <div className="w-10 h-10 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <p className="text-xs text-slate-400 font-mono">로컬 하드웨어 가속 상태 검사 중...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (backendStatus === 'NeedSetup' || backendStatus === 'FailedToStart') {
+    return (
+      <BootstrapLoader
+        onComplete={() => {
+          setBackendStatus('Active');
+          fetchVramStatus();
+          connectWebSocket();
+        }}
+      />
+    );
+  }
+
+  const navItems: { id: TabType; label: string; icon: React.ReactNode; badge?: string }[] = [
     { id: 'dashboard', label: '대시보드', icon: <LayoutDashboard className="w-4 h-4" /> },
     { id: 'explorer', label: '0. 모델 탐색기', icon: <Search className="w-4 h-4 text-cyan-400" />, badge: 'HF/LM' },
     { id: 'multimodal', label: '1. 멀티모달', icon: <Eye className="w-4 h-4" />, badge: 'VLM/LLM' },
     { id: 'text2img', label: '2. 텍스트-이미지', icon: <Palette className="w-4 h-4" />, badge: 'T2I' },
+    { id: 'gallery', label: '📸 히스토리 갤러리', icon: <History className="w-4 h-4 text-purple-400" />, badge: 'PNG Info' },
     { id: 'text2video', label: '3. 텍스트-비디오', icon: <Film className="w-4 h-4" />, badge: 'T2V' },
     { id: 'img2video', label: '4. 이미지-비디오', icon: <Wand2 className="w-4 h-4" />, badge: 'I2V' },
     { id: 'audio', label: '5. 텍스트-오디오', icon: <Music className="w-4 h-4" />, badge: 'Audio' },
     { id: 'tts', label: '6. TTS', icon: <Mic className="w-4 h-4" />, badge: 'TTS' },
+    { id: 'upscaler', label: '7. 이미지 업스케일', icon: <ZoomIn className="w-4 h-4 text-teal-400" />, badge: 'ESRGAN' },
+    { id: 'inpainting', label: '8. 인페인팅 & 마스크', icon: <Brush className="w-4 h-4 text-pink-400" />, badge: 'Inpaint' },
+    { id: 'batch', label: '9. 일괄 대량 생성', icon: <Layers className="w-4 h-4 text-orange-400" />, badge: 'Batch' },
+    { id: 'benchmark', label: '10. GPU 벤치마크', icon: <Gauge className="w-4 h-4 text-cyan-400" />, badge: 'TFLOPS' },
   ];
 
   return (
@@ -116,10 +169,15 @@ export const App: React.FC = () => {
         {activeTab === 'explorer' && <ModelExplorerTab />}
         {activeTab === 'multimodal' && <MultimodalTab />}
         {activeTab === 'text2img' && <Text2ImgTab />}
+        {activeTab === 'gallery' && <HistoryGalleryTab />}
         {activeTab === 'text2video' && <Text2VideoTab />}
         {activeTab === 'img2video' && <Img2VideoTab />}
         {activeTab === 'audio' && <Text2AudioTab />}
         {activeTab === 'tts' && <TtsTab />}
+        {activeTab === 'upscaler' && <ImageUpscalerTab />}
+        {activeTab === 'inpainting' && <InpaintingTab />}
+        {activeTab === 'batch' && <BatchStudioTab />}
+        {activeTab === 'benchmark' && <HardwareBenchmarkTab />}
       </main>
     </div>
   );

@@ -12,6 +12,9 @@ src-tauri/target/
 backend/__pycache__/
 backend/*.pyc
 backend/outputs/
+backend/*.db
+*.db
+*.sqlite
 *.pyc
 
 # Local AI Models (Large files)

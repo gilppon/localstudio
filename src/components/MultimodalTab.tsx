@@ -1,22 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { Eye, Send, Image as ImageIcon, Sparkles, Bot, User } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  Eye, Send, Image as ImageIcon, Sparkles, Bot, User, 
+  Trash2, Download, Copy, Check, Paperclip, RefreshCw 
+} from 'lucide-react';
 import { useStudioStore } from '../store/useStudioStore';
 
 interface ChatMessage {
+  id: string;
   sender: 'user' | 'bot';
   text: string;
   image?: string;
+  timestamp: string;
 }
 
 export const MultimodalTab: React.FC = () => {
-  const { setVramFlushing, localModels, fetchLocalModels } = useStudioStore();
+  const { localModels, fetchLocalModels } = useStudioStore();
   const [selectedModelFile, setSelectedModelFile] = useState('');
   const [prompt, setPrompt] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { sender: 'bot', text: '안녕하세요! Qwen2.5-VL 로컬 비전-언어 모델입니다. 분석하고 싶은 이미지와 궁금한 점을 입력해 주세요.' }
+    {
+      id: 'init',
+      sender: 'bot',
+      text: '반갑습니다! Qwen2.5-VL 온디바이스 비전-언어 모델입니다.\n이미지를 첨부하거나 질문을 입력하시면 100% 로컬 VRAM 환경에서 실시간 분석 및 추론을 제공합니다.',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }
   ]);
   const [loading, setLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchLocalModels();
@@ -28,22 +42,70 @@ export const MultimodalTab: React.FC = () => {
     }
   }, [localModels]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setSelectedImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  const handleImageUpload = (file: File) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setSelectedImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      handleImageUpload(file);
     }
+  };
+
+  const handleCopyText = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const handleClearSession = () => {
+    setMessages([
+      {
+        id: Date.now().toString(),
+        sender: 'bot',
+        text: '대화 세션이 초기화되었습니다. 새로운 질문이나 분석할 이미지를 입력해주세요.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ]);
+  };
+
+  const handleExportMarkdown = () => {
+    const lines = messages.map((m) => {
+      const role = m.sender === 'user' ? '👤 User' : '🤖 Assistant';
+      return `### ${role} (${m.timestamp})\n${m.text}\n`;
+    });
+    const blob = new Blob([lines.join('\n---\n\n')], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `LocalAIStudio_ChatSession_${Date.now()}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim() && !selectedImage) return;
 
-    const userMsg: ChatMessage = { sender: 'user', text: prompt, image: selectedImage || undefined };
+    const userMsg: ChatMessage = {
+      id: Date.now().toString(),
+      sender: 'user',
+      text: prompt,
+      image: selectedImage || undefined,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
     setMessages((prev) => [...prev, userMsg]);
     setPrompt('');
     setSelectedImage(null);
@@ -60,113 +122,214 @@ export const MultimodalTab: React.FC = () => {
         })
       });
       const data = await res.json();
-      if (res.ok && data.reply) {
-        setMessages((prev) => [...prev, { sender: 'bot', text: data.reply }]);
-      } else {
-        setMessages((prev) => [...prev, { sender: 'bot', text: data.detail || data.reply || '오류가 발생했습니다. 백엔드 연결을 확인해 주세요.' }]);
-      }
+      const replyText = data.reply || (data.detail || '응답을 생성할 수 없습니다.');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          sender: 'bot',
+          text: replyText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
     } catch (err) {
-      setMessages((prev) => [...prev, { sender: 'bot', text: '오류가 발생했습니다. 백엔드 연결을 확인해 주세요.' }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          sender: 'bot',
+          text: '백엔드 AI 엔진에 연결할 수 없습니다. 엔진 가동 상태를 점검해주세요.',
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto h-[calc(100vh-5rem)] flex flex-col">
-      {/* Header with Model Select Dropdown */}
-      <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+    <div 
+      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+      onDragLeave={() => setIsDragOver(false)}
+      onDrop={handleDrop}
+      className="p-6 max-w-5xl mx-auto h-[calc(100vh-5rem)] flex flex-col relative"
+    >
+      {/* Drag & Drop Visual Overlay */}
+      {isDragOver && (
+        <div className="absolute inset-4 z-50 bg-indigo-950/90 border-2 border-dashed border-indigo-400 rounded-3xl flex flex-col items-center justify-center backdrop-blur-sm pointer-events-none">
+          <ImageIcon className="w-16 h-16 text-indigo-400 animate-bounce mb-2" />
+          <p className="text-base font-bold text-white">이미지 파일을 여기에 드롭하여 즉시 분석</p>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
             <Eye className="w-5 h-5" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-white flex items-center gap-2">
-              멀티모달 챗봇 스튜디오
+              멀티모달 비전 챗봇 (Qwen2.5-VL)
             </h1>
-            <p className="text-xs text-slate-400">100% 로컬 VRAM 최적화 비전 이해 추론 엔진</p>
+            <p className="text-xs text-slate-400">100% 온디바이스 VRAM 최적화 멀티턴 비전 이해 추론 엔진</p>
           </div>
         </div>
 
-        {/* Local Model Selector Dropdown */}
-        <div className="flex items-center gap-2 bg-slate-900/90 p-2 rounded-xl border border-indigo-500/40 shadow-xl">
-          <span className="text-xs font-semibold text-indigo-300 flex items-center gap-1 shrink-0">
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> 보유 모델:
-          </span>
+        {/* Model Selector & Session Actions */}
+        <div className="flex items-center gap-2">
           <select
             value={selectedModelFile}
             onChange={(e) => setSelectedModelFile(e.target.value)}
-            className="bg-slate-950 text-white text-xs rounded-lg px-3 py-1.5 border border-indigo-500/30 focus:outline-none focus:border-indigo-400 font-mono min-w-[220px] max-w-[320px] truncate"
+            className="bg-slate-950 text-white text-xs rounded-xl px-3 py-2 border border-indigo-500/30 focus:outline-none focus:border-indigo-400 font-mono min-w-[200px] max-w-[280px] truncate shadow-lg"
           >
-            {localModels.map((m) => (
-              <option key={m.path} value={m.filename} className="bg-slate-900 text-slate-100 font-medium py-1">
-                [{m.source}] {m.filename} ({m.size_gb} GB)
-              </option>
-            ))}
+            {localModels.length > 0 ? (
+              localModels.map((m) => (
+                <option key={m.path} value={m.filename} className="bg-slate-900 text-slate-100 font-medium py-1">
+                  [{m.source}] {m.filename} ({m.size_gb} GB)
+                </option>
+              ))
+            ) : (
+              <option value="">보유 모델 없음 (Qwen2.5-VL 내장)</option>
+            )}
           </select>
 
           <button
-            onClick={() => fetchLocalModels()}
-            title="로컬 모델 저장소 재스캔"
-            className="p-1.5 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded-lg transition-all"
+            type="button"
+            onClick={handleExportMarkdown}
+            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition-colors"
+            title="대화 내역 마크다운 내보내기"
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Download className="w-4 h-4 text-indigo-400" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleClearSession}
+            className="p-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-red-400 transition-colors"
+            title="대화 세션 초기화"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Chat Messages Window */}
-      <div className="flex-1 overflow-y-auto p-4 rounded-2xl glass-panel border border-slate-800 space-y-4 mb-4">
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`flex items-start gap-3 ${msg.sender === 'user' ? 'flex-row-reverse' : ''}`}>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${msg.sender === 'user' ? 'bg-indigo-600 text-white' : 'bg-cyan-600 text-white'}`}>
-              {msg.sender === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-            </div>
-            
-            <div className={`max-w-[75%] p-3.5 rounded-2xl text-sm ${msg.sender === 'user' ? 'bg-indigo-600/30 border border-indigo-500/30 text-white' : 'bg-slate-900 border border-slate-800 text-slate-200'}`}>
+      {/* Messages Scroll Area */}
+      <div className="flex-1 overflow-y-auto pr-2 space-y-4 mb-4">
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex gap-3 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            {msg.sender === 'bot' && (
+              <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center shrink-0 text-indigo-400 shadow-md">
+                <Bot className="w-4 h-4" />
+              </div>
+            )}
+
+            <div className={`max-w-[78%] space-y-2 ${msg.sender === 'user' ? 'items-end' : 'items-start'}`}>
+              {/* Attached Image Thumbnail */}
               {msg.image && (
-                <img src={msg.image} alt="User upload" className="max-w-xs max-h-48 rounded-lg mb-2 border border-slate-700 object-cover" />
+                <div className="rounded-xl overflow-hidden border border-indigo-500/30 shadow-lg max-w-sm">
+                  <img src={msg.image} alt="User Upload" className="max-h-60 w-auto object-cover" />
+                </div>
               )}
-              <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+
+              {/* Message Bubble */}
+              <div
+                className={`p-3.5 rounded-2xl text-xs leading-relaxed group relative shadow-md ${
+                  msg.sender === 'user'
+                    ? 'bg-gradient-to-tr from-indigo-600 to-cyan-600 text-white rounded-tr-none'
+                    : 'glass-panel bg-slate-900/90 border border-slate-800 text-slate-200 rounded-tl-none font-mono whitespace-pre-wrap'
+                }`}
+              >
+                <div>{msg.text}</div>
+
+                {/* Quick Copy Button */}
+                <div className="mt-1.5 flex items-center justify-between text-[10px] opacity-70">
+                  <span>{msg.timestamp}</span>
+                  {msg.sender === 'bot' && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(msg.text, msg.id)}
+                      className="ml-2 text-slate-400 hover:text-white flex items-center gap-0.5"
+                    >
+                      {copiedId === msg.id ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedId === msg.id ? '복사됨' : '복사'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
+
+            {msg.sender === 'user' && (
+              <div className="w-8 h-8 rounded-xl bg-cyan-600/30 border border-cyan-500/40 flex items-center justify-center shrink-0 text-cyan-400 shadow-md">
+                <User className="w-4 h-4" />
+              </div>
+            )}
           </div>
         ))}
+
         {loading && (
-          <div className="flex items-center gap-2 text-xs text-slate-400 animate-pulse">
-            <Sparkles className="w-4 h-4 text-cyan-400" /> Qwen2.5-VL 추론 중...
+          <div className="flex gap-3 items-center">
+            <div className="w-8 h-8 rounded-xl bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center shrink-0 text-indigo-400">
+              <Bot className="w-4 h-4" />
+            </div>
+            <div className="glass-panel p-3 rounded-2xl border border-slate-800 flex items-center gap-2 text-xs text-indigo-300">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+              <span>Qwen2.5-VL 온디바이스 신경망 추론 생성 중...</span>
+            </div>
           </div>
         )}
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Box */}
-      <form onSubmit={handleSubmit} className="p-3 rounded-2xl glass-panel border border-slate-800 flex items-center gap-3">
-        <label className="cursor-pointer p-2.5 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-xl border border-slate-800 transition-all">
-          <ImageIcon className="w-5 h-5" />
-          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-        </label>
-
+      {/* Input Toolbar & Area */}
+      <form onSubmit={handleSubmit} className="shrink-0 space-y-2">
         {selectedImage && (
-          <div className="relative shrink-0">
-            <img src={selectedImage} alt="Preview" className="w-10 h-10 rounded-lg object-cover border border-indigo-500" />
-            <button onClick={() => setSelectedImage(null)} className="absolute -top-1 -right-1 bg-rose-600 text-white w-4 h-4 rounded-full text-[10px] flex items-center justify-center">✕</button>
+          <div className="flex items-center gap-2 p-2 bg-slate-900 rounded-xl border border-indigo-500/30 w-fit">
+            <img src={selectedImage} alt="Attachment" className="w-10 h-10 object-cover rounded-lg" />
+            <span className="text-xs text-slate-300 font-medium">첨부된 이미지 준비됨</span>
+            <button
+              type="button"
+              onClick={() => setSelectedImage(null)}
+              className="text-slate-400 hover:text-red-400 text-xs ml-2 font-bold"
+            >
+              ✕
+            </button>
           </div>
         )}
 
-        <input
-          type="text"
-          placeholder="이미지에 대해 질문하거나 텍스트 프롬프트를 입력하세요..."
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          className="flex-1 bg-transparent border-none text-white text-sm focus:outline-none placeholder-slate-500 px-2"
-        />
+        <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 rounded-2xl p-2 shadow-xl focus-within:border-indigo-500 transition-colors">
+          <label className="p-2 text-slate-400 hover:text-indigo-400 hover:bg-slate-800 rounded-xl cursor-pointer transition-colors" title="이미지 파일 첨부">
+            <Paperclip className="w-4 h-4" />
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleImageUpload(file);
+              }}
+              className="hidden"
+            />
+          </label>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-500 hover:to-cyan-400 text-white text-xs font-semibold rounded-xl transition-all shadow-md flex items-center gap-1.5"
-        >
-          <Send className="w-4 h-4" /> 전송
-        </button>
+          <input
+            type="text"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="이미지에 대한 질문을 하거나 텍스트를 입력하세요 (이미지 드래그 앤 드롭 지원)..."
+            className="flex-1 bg-transparent text-xs text-white placeholder:text-slate-600 focus:outline-none px-2"
+          />
+
+          <button
+            type="submit"
+            disabled={loading || (!prompt.trim() && !selectedImage)}
+            className="p-2.5 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 disabled:opacity-40 text-white rounded-xl shadow-md shadow-indigo-600/30 transition-all"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
       </form>
     </div>
   );
