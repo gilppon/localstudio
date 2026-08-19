@@ -21,9 +21,24 @@ export const BootstrapLoader: React.FC<BootstrapLoaderProps> = ({ onComplete }) 
   });
   const [error, setError] = useState<string | null>(null);
 
+  const isTauriEnv = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
   const startSetup = async () => {
     setError(null);
     setStarted(true);
+    if (!isTauriEnv) {
+      // 웹 브라우저 환경에서는 시뮬레이션 및 안내
+      setTimeout(() => {
+        setProgress({
+          percent: 100,
+          speed_mbps: 0,
+          status: "COMPLETED"
+        });
+        setTimeout(onComplete, 800);
+      }, 1500);
+      return;
+    }
+
     try {
       // Tauri Core에 백엔드 다운로드 빌드 프로세스 기동 요청
       await invoke("start_bootstrap_setup");
@@ -34,24 +49,30 @@ export const BootstrapLoader: React.FC<BootstrapLoaderProps> = ({ onComplete }) 
   };
 
   useEffect(() => {
+    if (!isTauriEnv) return;
+
     // 백그라운드 스레드의 다운로드 프로그레스 이벤트를 청취
     let unlisten: (() => void) | null = null;
 
     const setupListener = async () => {
-      unlisten = await listen<SetupProgress>("setup_progress", (event) => {
-        const payload = event.payload;
-        setProgress(payload);
+      try {
+        unlisten = await listen<SetupProgress>("setup_progress", (event) => {
+          const payload = event.payload;
+          setProgress(payload);
 
-        if (payload.status.startsWith("FAILED:")) {
-          setError(payload.status.replace("FAILED:", "").trim());
-          setStarted(false);
-        } else if (payload.status === "COMPLETED") {
-          // 설치 성공 시 부모 대시보드 컴포넌트로 완료 콜백 전송
-          setTimeout(() => {
-            onComplete();
-          }, 1000);
-        }
-      });
+          if (payload.status.startsWith("FAILED:")) {
+            setError(payload.status.replace("FAILED:", "").trim());
+            setStarted(false);
+          } else if (payload.status === "COMPLETED") {
+            // 설치 성공 시 부모 대시보드 컴포넌트로 완료 콜백 전송
+            setTimeout(() => {
+              onComplete();
+            }, 1000);
+          }
+        });
+      } catch (e) {
+        console.warn("Tauri listener registration skipped in web mode:", e);
+      }
     };
 
     setupListener();
@@ -61,7 +82,7 @@ export const BootstrapLoader: React.FC<BootstrapLoaderProps> = ({ onComplete }) 
         unlisten();
       }
     };
-  }, [onComplete]);
+  }, [onComplete, isTauriEnv]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950 font-sans text-slate-100">

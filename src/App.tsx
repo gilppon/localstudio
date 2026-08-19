@@ -41,16 +41,39 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     const checkStatus = async () => {
-      try {
-        const status = await invoke<string>("get_backend_status");
-        setBackendStatus(status);
-        if (status === 'Active') {
+      // 1. 브라우저(Web Dev) 환경 감지
+      const isTauriEnv = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+      
+      if (isTauriEnv) {
+        try {
+          const status = await invoke<string>("get_backend_status");
+          setBackendStatus(status);
+          if (status === 'Active') {
+            fetchVramStatus();
+            connectWebSocket();
+          }
+        } catch (e) {
+          console.warn("Tauri 백엔드 상태 감지 에러, 셋업 필요 처리:", e);
+          setBackendStatus('NeedSetup');
+        }
+      } else {
+        // 일반 웹 브라우저 환경에서는 FastAPI HTTP 헬스체크로 상태 판별
+        try {
+          const res = await fetch('http://127.0.0.1:8000/api/vram-status', { signal: AbortSignal.timeout(2000) });
+          if (res.ok) {
+            setBackendStatus('Active');
+            fetchVramStatus();
+            connectWebSocket();
+          } else {
+            setBackendStatus('Active'); // 백엔드 기본 진입 허용
+          }
+        } catch (err) {
+          console.warn("로컬 백엔드 서버(FastAPI) 연결 대기 중...:", err);
+          // 브라우저에서도 스튜디오 UI 전체를 자유롭게 탐색할 수 있도록 Active로 진입
+          setBackendStatus('Active');
           fetchVramStatus();
           connectWebSocket();
         }
-      } catch (e) {
-        console.error("백엔드 상태 감지 에러, 셋업 필요 처리:", e);
-        setBackendStatus('NeedSetup');
       }
     };
     checkStatus();
